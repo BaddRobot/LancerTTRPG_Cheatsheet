@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lancer Action Board</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&family=Barlow:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+img { max-width: 100%; }
+/* Layout: COMP/CON-style turn diagram on the left, a live readout of the selected action slot on the right; stacks on phones. */
+:root {
+  --bg: #e9eeed; --surface: #fbfcfc; --ink: #151b1c; --muted: #56636a; --line: #c7d1d0;
+  --move: #c21f30; --full: #157875; --quick: #ae4f1c; --heat: #c21f30;
+  --free: #475766; --react: #634894; --proto: #866710; --on: #ffffff;
+  --display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --body: "Barlow", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --chamfer: 14px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1415; --surface: #172022; --ink: #e4ebe9; --muted: #92a1a4; --line: #2b383a;
+  --move: #dc3a4a; --full: #1d9a95; --quick: #cf6730; --heat: #e04a58;
+  --free: #6b7f90; --react: #8a6ac6; --proto: #b8922a; --on: #ffffff; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1415; --surface: #172022; --ink: #e4ebe9; --muted: #92a1a4; --line: #2b383a;
+  --move: #dc3a4a; --full: #1d9a95; --quick: #cf6730; --heat: #e04a58;
+  --free: #6b7f90; --react: #8a6ac6; --proto: #b8922a; --on: #ffffff; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.app { max-width: 1180px; margin: 0 auto; padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 18px; }
+button, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+/* header */
+.top { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 14px 24px; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.callsign { font-family: var(--display); font-weight: 800; font-size: clamp(34px, 6vw, 52px); line-height: .95; text-transform: uppercase; letter-spacing: .01em; margin: 4px 0 2px; }
+.who { color: var(--muted); font-size: 14px; }
+.who b { color: var(--ink); font-weight: 600; }
+.controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn { border: 1.5px solid var(--ink); background: transparent; padding: 7px 14px; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; }
+.btn:hover { background: var(--ink); color: var(--bg); }
+.btn.solid { background: var(--ink); color: var(--bg); }
+.btn.solid:hover { opacity: .85; }
+select { border: 1.5px solid var(--ink); background: var(--surface); padding: 7px 10px; max-width: 100%; }
+
+/* top bar: squad tabs */
+.topbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; }
+.tabs-wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; }
+.tab { --c: var(--ink); border: 1.5px solid var(--ink); background: transparent; padding: 6px 14px 5px; font-family: var(--display); font-weight: 700; font-size: 16px; letter-spacing: .06em; text-transform: uppercase; text-decoration: none; color: var(--ink); line-height: 1.2;
+  clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%); }
+.tab:hover { background: var(--surface); }
+.tab[aria-selected="true"] { background: var(--ink); color: var(--bg); }
+.tab.missing { border-style: dashed; color: var(--muted); }
+.tab.missing[aria-selected="true"] { color: var(--bg); }
+.btn.refresh { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px 5px; font-size: 15px; }
+.btn.refresh svg { width: 15px; height: 15px; }
+.btn.refresh.spin svg { animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.notice { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--move); padding: 18px 20px; display: flex; flex-direction: column; gap: 8px; }
+.notice h2 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 26px; text-transform: uppercase; letter-spacing: .02em; }
+.notice p { margin: 0; max-width: 64ch; }
+.notice code { font-family: var(--mono); font-size: 13px; background: var(--bg); padding: 1px 5px; }
+@media (prefers-reduced-motion: reduce) { .btn.refresh.spin svg { animation: none; } }
+@media (max-width: 520px) { .tab { padding: 5px 9px 4px; font-size: 14px; letter-spacing: .03em; } .tabs-wrap { margin-left: 0; } }
+#msg { margin: 0; font-size: 14px; color: var(--muted); min-height: 1em; }
+#msg.err { color: var(--move); font-weight: 600; }
+
+/* collapsible sections */
+.fold { border: 1px solid var(--line); background: var(--surface); }
+.fold > summary { list-style: none; cursor: pointer; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 10px 14px; user-select: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary::before { content: ""; width: 0; height: 0; border-left: 7px solid var(--ink); border-top: 5px solid transparent; border-bottom: 5px solid transparent; align-self: center; transition: transform .15s ease; }
+.fold[open] > summary::before { transform: rotate(90deg); }
+.fold > summary:hover { background: var(--bg); }
+.fold .ftitle { font-family: var(--display); font-weight: 700; font-size: 17px; letter-spacing: .06em; text-transform: uppercase; }
+.fold .fpeek { font-family: var(--mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
+.fold[open] .fpeek { display: none; }
+.fold .fbody { padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px; }
+.fold .stats { border-left: 0; border-right: 0; border-bottom: 0; }
+.fhint { margin: 0; font-size: 13.5px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { .fold > summary::before { transition: none; } }
+
+/* stat strip */
+.stats { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.stat { background: var(--surface); padding: 8px 10px; display: flex; flex-direction: column; }
+.stat span { font-family: var(--mono); font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.stat b { font-family: var(--display); font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+
+/* layout */
+.layout { display: grid; grid-template-columns: minmax(0, 430px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 880px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* diagram */
+.board h2 { font-family: var(--display); font-weight: 800; font-size: 28px; letter-spacing: .02em; text-transform: uppercase; margin: 0; line-height: 1; }
+.board .intro { margin: 6px 0 18px; color: var(--muted); font-size: 14px; max-width: 60ch; }
+.diagram { display: flex; flex-direction: column; gap: 16px; }
+.step-label { display: block; font-family: var(--display); font-weight: 700; font-size: 15px; letter-spacing: .06em; text-transform: uppercase; margin-bottom: 6px; }
+.step-label em { font-style: normal; color: var(--move); }
+.bracket { position: relative; padding-left: 20px; margin-left: 6px; display: flex; flex-direction: column; gap: 10px; }
+.bracket::before { content: ""; position: absolute; left: 0; top: -6px; bottom: 23px; width: 3px; background: var(--move); }
+.bracket > .row { position: relative; }
+.bracket > .row::before { content: ""; position: absolute; left: -20px; top: 23px; width: 16px; height: 3px; background: var(--move); }
+.row { display: flex; align-items: center; gap: 8px; }
+.plus { font-family: var(--display); font-weight: 800; font-size: 22px; color: var(--quick); line-height: 1; }
+.plus.heat { color: var(--heat); }
+
+.banner { --c: var(--quick); flex: 1 1 0; min-width: 0; display: flex; height: 48px; background: var(--c);
+  clip-path: polygon(0 0, calc(100% - var(--chamfer)) 0, 100% var(--chamfer), 100% 100%, 0 100%); transition: transform .15s ease; }
+.banner.k-move { --c: var(--move); } .banner.k-full { --c: var(--full); } .banner.k-quick { --c: var(--quick); }
+.banner.k-free { --c: var(--free); } .banner.k-reaction { --c: var(--react); } .banner.k-protocol { --c: var(--proto); }
+.banner.k-heat { --c: var(--heat); padding: 2px; }
+.banner .sel { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--on); text-align: left; padding: 0 10px 0 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  font-family: var(--display); font-weight: 800; font-size: 25px; letter-spacing: .02em; text-transform: uppercase; }
+.banner.k-heat .sel { background: var(--surface); color: var(--heat); clip-path: polygon(0 0, calc(100% - var(--chamfer) + 1px) 0, 100% calc(var(--chamfer) - 1px), 100% 100%, 0 100%); }
+.sel .count { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .04em; opacity: .85; white-space: nowrap; }
+.banner .chk { flex: 0 0 auto; width: 30px; height: 30px; margin: auto 14px auto 0; border-radius: 50%; border: 2px solid rgba(255,255,255,.75); background: transparent; color: transparent; font-weight: 700; font-size: 15px; line-height: 1; padding: 0; }
+.banner .chk:hover { background: rgba(255,255,255,.18); color: rgba(255,255,255,.7); }
+.banner .chk[aria-pressed="true"] { background: var(--on); color: var(--c); border-color: var(--on); }
+.banner.selected { transform: translateX(6px); }
+.banner.selected .sel { box-shadow: inset 0 -4px 0 rgba(255,255,255,.9); }
+.banner.k-heat.selected .sel { box-shadow: inset 0 -4px 0 var(--heat); }
+.banner.done .sel > span:first-child { text-decoration: line-through; text-decoration-thickness: 3px; opacity: .6; }
+.banner.locked { opacity: .32; }
+.banner.locked .chk { cursor: not-allowed; }
+.sel:hover { filter: brightness(1.08); }
+
+.turnbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line); }
+.turnbar .status { flex: 1 1 180px; font-size: 13px; color: var(--muted); }
+
+/* panel */
+.panel { background: var(--surface); border: 1px solid var(--line); min-width: 0; scroll-margin-top: 12px; }
+.phead { --c: var(--quick); background: var(--c); color: var(--on); padding: 14px 18px 12px;
+  clip-path: polygon(0 0, calc(100% - 22px) 0, 100% 22px, 100% 100%, 0 100%); }
+.phead h3 { margin: 0; font-family: var(--display); font-weight: 800; font-size: 30px; text-transform: uppercase; line-height: 1; letter-spacing: .02em; }
+.phead p { margin: 6px 0 0; font-size: 14px; opacity: .95; max-width: 62ch; }
+.pbody { padding: 6px 18px 20px; }
+.group { margin-top: 16px; }
+.group > h4 { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.act { padding: 12px 0; border-bottom: 1px solid var(--line); }
+.act:last-child { border-bottom: 0; }
+.act header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; }
+.act h5 { margin: 0; font-family: var(--display); font-weight: 700; font-size: 21px; letter-spacing: .01em; line-height: 1.15; }
+.act .src { font-size: 12.5px; color: var(--muted); font-style: italic; }
+.act p { margin: 4px 0 0; max-width: 68ch; }
+.act .trig { font-size: 14px; }
+.act .trig b { font-family: var(--display); letter-spacing: .04em; text-transform: uppercase; font-size: 13px; }
+.act .note { font-size: 13.5px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 5px; }
+.chip { font-family: var(--mono); font-size: 11.5px; padding: 2px 7px; border: 1px solid var(--line); background: var(--bg); white-space: nowrap; }
+.chip.dmg { border-color: var(--ink); font-weight: 600; }
+.chip.warn { border-color: var(--move); color: var(--move); }
+.chip.core { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.empty { color: var(--muted); font-style: italic; padding: 10px 0; margin: 0; }
+.rules { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 8px 14px; padding-top: 8px; }
+.rules dt { font-family: var(--display); font-weight: 700; font-size: 17px; line-height: 1.3; }
+.rules dd { margin: 0; font-size: 14px; }
+@media (max-width: 480px) { .rules { grid-template-columns: minmax(0, 1fr); gap: 0; } .rules dd { margin-bottom: 10px; } }
+.callout { margin-top: 16px; padding: 10px 12px; background: var(--bg); font-size: 14px; border-left: 3px solid var(--ink); }
+.heatladder { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin-top: 12px; }
+.heatladder div { border: 2px solid var(--heat); padding: 8px; text-align: center; }
+.heatladder div.next { background: var(--heat); color: var(--on); }
+.heatladder div.paid { opacity: .4; }
+.heatladder span { display: block; font-family: var(--mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.heatladder b { font-family: var(--display); font-size: 24px; font-variant-numeric: tabular-nums; }
+
+/* passives */
+.passives h2 { font-family: var(--display); font-weight: 800; font-size: 22px; text-transform: uppercase; margin: 0 0 4px; letter-spacing: .02em; }
+.passives .intro { margin: 0 0 6px; color: var(--muted); font-size: 14px; }
+.passive-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 0 28px; }
+@media (prefers-reduced-motion: reduce) { .banner { transition: none; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="topbar" aria-label="Pilots">
+    <div class="eyebrow">Lancer · Action Board</div>
+    <div class="tabs-wrap">
+      <div class="tabs" role="tablist" id="tabs"></div>
+      <button class="btn refresh" id="refreshBtn" type="button" title="Reload every pilot's file from the repository">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="square" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg>Refresh</button>
+    </div>
+  </nav>
+  <p id="msg" role="status"></p>
+
+  <section class="notice" id="notice" hidden></section>
+
+  <div id="content" hidden style="display:contents">
+  <header class="top">
+    <div>
+      <div class="eyebrow" id="fileTag"></div>
+      <div class="callsign" id="callsign">—</div>
+      <div class="who" id="who"></div>
+    </div>
+    <div class="controls">
+      <select id="mechSel" aria-label="Choose mech" hidden></select>
+    </div>
+  </header>
+
+  <details class="fold" id="statsBox" open>
+    <summary><span class="ftitle">Mech stats</span><span class="fpeek" id="statsPeek"></span></summary>
+    <div class="stats" id="stats"></div>
+  </details>
+
+  <main class="layout">
+    <section class="board">
+      <h2>Types of actions</h2>
+      <p class="intro">Tap any action to see what this mech can do with it. Tick the circle when you use it, and the board shows what's left this turn.</p>
+      <div class="diagram" id="diagram"></div>
+      <div class="turnbar">
+        <span class="status" id="turnStatus"></span>
+        <button class="btn" id="newTurn" type="button">New turn</button>
+        <button class="btn" id="newScene" type="button">New scene</button>
+      </div>
+    </section>
+    <section class="panel" id="panel" aria-live="polite"></section>
+  </main>
+
+  <section class="passives">
+    <h2>Always on</h2>
+    <p class="intro">Passive traits and talents. These don't cost an action, but they change how your actions work.</p>
+    <div class="passive-list" id="passives"></div>
+  </section>
+  </div>
+</div>
+
+<script>
+/* The squad. Each pilot's COMP/CON export sits next to this page as <Callsign>.json */
+const SQUAD = ["Milkman", "Shrimpboat", "Tsar", "Bluedog"];
+const HEAT_COSTS = ["1", "1d3", "1d6", "1d6+4"];
+
+/* ---------- helpers ---------- */
+const $ = id => document.getElementById(id);
+function esc(s) { return String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+function rich(s) {
+  return esc(s).replace(/&lt;br\s*\/?&gt;/gi, "<br>")
+    .replace(/&lt;(\/?)(b|i|strong|em)&gt;/gi, "<$1$2>");
+}
+function titleCase(s) { return s.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()); }
+
+const TAG_NAMES = {
+  tg_arcing: "Arcing", tg_inaccurate: "Inaccurate", tg_accurate: "Accurate", tg_reliable: "Reliable {V}", tg_limited: "Limited {V}",
+  tg_unique: "Unique", tg_grenade: "Grenade", tg_mine: "Mine", tg_loading: "Loading", tg_ordnance: "Ordnance", tg_smart: "Smart",
+  tg_seeking: "Seeking", tg_overkill: "Overkill", tg_knockback: "Knockback {V}", tg_ap: "Armor-Piercing", tg_heat_self: "Heat {V} (Self)",
+  tg_thrown: "Thrown {V}", tg_deployable: "Deployable", tg_drone: "Drone", tg_shield: "Shield", tg_round: "{V}/round",
+  tg_turn: "{V}/turn", tg_recharge: "Recharge {V}+", tg_indestructible: "Indestructible", tg_ai: "AI", tg_set_damage_type: "Set damage type"
+};
+const TAG_HINTS = {
+  tg_arcing: "Arcing: can fire over obstacles; no line of sight needed.",
+  tg_inaccurate: "Inaccurate: attacks take +1 Difficulty.",
+  tg_accurate: "Accurate: attacks get +1 Accuracy.",
+  tg_reliable: "Reliable: deals that much damage even on a miss.",
+  tg_loading: "Loading: reload with Stabilize after it fires.",
+  tg_ordnance: "Ordnance: fire it before you move or take other actions this turn.",
+  tg_ap: "Armor-Piercing: ignores Armor.",
+  tg_overkill: "Overkill: reroll 1s on damage dice, and take 1 heat for each.",
+  tg_knockback: "Knockback: push the target that many spaces on a hit.",
+  tg_heat_self: "Heat (Self): you take that much heat when you use it."
+};
+function tagLabel(t) {
+  const tpl = TAG_NAMES[t.id];
+  if (tpl) return tpl.replace("{V}", t.val ?? "");
+  return titleCase(String(t.id).replace(/^tg_/, "")) + (t.val != null ? " " + t.val : "");
+}
+function rangeText(r) { return (r || []).map(x => `${x.type} ${x.val}`); }
+function damageText(d) { return (d || []).map(x => `${x.val} ${x.type === "variable" ? "" : x.type}`.trim()); }
+
+/* ---------- build a model from the pilot ---------- */
+function normalizePilot(raw) {
+  const p = raw && raw.data && Array.isArray(raw.data.mechs) ? raw.data : raw;
+  if (!p || !Array.isArray(p.mechs)) throw new Error("This file doesn't look like a COMP/CON pilot export. It needs a \"mechs\" list.");
+  if (!p.mechs.length) throw new Error("This pilot has no mechs yet. Build a mech in COMP/CON, then export the pilot again.");
+  return p;
+}
+
+function bucketFor(act) {
+  const a = String(act || "Quick").toLowerCase();
+  if (a.includes("protocol")) return "protocol";
+  if (a.includes("reaction")) return "reaction";
+  if (a.includes("full")) return "full";
+  if (a.includes("quick") || a.includes("invade") || a.includes("tech")) return "quick";
+  return "free";
+}
+
+function buildModel(p, mech) {
+  const [hull = 0, agi = 0, sys = 0, eng = 0] = p.mechSkills || [];
+  const level = p.level || 0;
+  const grit = Math.ceil(level / 2);
+  const f = mech.frameData || {};
+  const fs = f.stats || {};
+  const stats = {
+    hp: (fs.hp || 0) + grit + hull * 2, armor: fs.armor || 0, evasion: (fs.evasion || 0) + agi, edef: (fs.edef || 0) + sys,
+    speed: (fs.speed || 0) + Math.floor(agi / 2), heat: (fs.heatcap || 0) + eng, sensors: fs.sensor_range || 0,
+    save: (fs.save || 0) + grit, tech: (fs.tech_attack || 0) + sys, structure: fs.structure || 4, stress: fs.stress || 4,
+    repcap: (fs.repcap || 0) + Math.floor(hull / 2), size: fs.size || 1
+  };
+  const limitedBonus = Math.floor(eng / 2);
+  const B = { protocol: [], free: [], quick: [], full: [], reaction: [], passive: [] };
+  const add = (act, item) => B[bucketFor(act)].push(item);
+
+  const lo = (mech.loadouts || [])[mech.active_loadout_index || 0] || (mech.loadouts || [])[0] || {};
+
+  // weapons
+  const weapons = [];
+  const groups = [...(lo.mounts || []), ...(lo.integratedMounts || []), lo.improved_armament, lo.integratedWeapon, lo.superheavy_mounting].filter(Boolean);
+  groups.forEach(g => {
+    const slots = [...(g.slots || []), ...(g.extra || [])];
+    if (g.weapon) slots.push({ weapon: g.weapon });
+    slots.forEach(s => {
+      const w = s && s.weapon; if (!w || !w.data) return;
+      const d = w.data;
+      const name = w.flavorName || d.name;
+      const threat = (d.range || []).find(r => r.type === "Threat");
+      weapons.push({
+        name, mountType: g.mount_type, size: d.mount || s.size, type: d.type, tags: d.tags || [],
+        damage: damageText(d.damage), range: rangeText(d.range), threat: threat ? threat.val : 1,
+        effect: d.effect || d.on_hit || "", destroyed: !!w.destroyed, superheavy: (d.mount || "") === "Superheavy"
+      });
+      (d.actions || []).forEach(a => add(a.activation, { name: a.name, src: name, detail: a.detail, trigger: a.trigger, freq: a.frequency, chips: rangeText(a.range), dmg: damageText(a.damage) }));
+    });
+  });
+
+  // systems
+  [...(lo.systems || []), ...(lo.integratedSystems || [])].forEach(s => {
+    const d = s && s.data; if (!d) return;
+    const name = s.flavorName || d.name;
+    const lim = (d.tags || []).find(t => t.id === "tg_limited");
+    const uses = lim ? `Limited ${Number(lim.val) + limitedBonus}` : null;
+    const tagChips = (d.tags || []).filter(t => !["tg_limited", "tg_unique"].includes(t.id)).map(tagLabel);
+    const actions = d.actions || [], deps = d.deployables || [];
+    const shared = uses && actions.length + deps.length > 1 ? uses + " · shared" : uses;
+    const destroyed = !!s.destroyed;
+    actions.forEach(a => add(a.activation, { name: a.name, src: name, detail: a.detail, trigger: a.trigger, freq: a.frequency, chips: [...rangeText(a.range), ...tagChips], dmg: damageText(a.damage), uses: shared, destroyed }));
+    deps.forEach(dep => {
+      const depChips = [dep.type, dep.size != null ? `Size ${dep.size}` : null, dep.hp != null ? `HP ${dep.hp}` : null, dep.evasion != null ? `Evasion ${dep.evasion}` : null, ...rangeText(dep.range)].filter(Boolean);
+      add(dep.activation || "Quick", { name: `Deploy ${dep.name}`, src: name, detail: d.effect || dep.detail, chips: depChips, uses: shared, destroyed });
+      if (dep.recall) add(dep.recall, { name: `Recall ${dep.name}`, src: name, detail: `Pick the deployed ${dep.name} back up.`, destroyed });
+      if (dep.redeploy) add(dep.redeploy, { name: `Redeploy ${dep.name}`, src: name, detail: `Put a recalled ${dep.name} back down.`, destroyed });
+      (dep.actions || []).forEach(a => add(a.activation, { name: a.name, src: `${name} · ${dep.name}`, detail: a.detail, trigger: a.trigger, freq: a.frequency, dmg: damageText(a.damage), chips: rangeText(a.range), note: `Needs a deployed ${dep.name}.` }));
+    });
+    if (!actions.length && !deps.length && d.effect) B.passive.push({ name, src: "System", detail: d.effect });
+  });
+
+  // frame traits
+  (f.traits || []).forEach(t => {
+    if ((t.actions || []).length) t.actions.forEach(a => add(a.activation, { name: a.name, src: `Frame trait · ${t.name}`, detail: a.detail, trigger: a.trigger, freq: a.frequency }));
+    else if (t.use || (t.active_effects || []).some(e => e.frequency)) {
+      const freq = (t.active_effects || []).map(e => e.frequency).find(Boolean);
+      add("Free", { name: t.name, src: `${f.name || "Frame"} trait`, detail: t.description, freq });
+    } else B.passive.push({ name: t.name, src: `${f.name || "Frame"} trait`, detail: t.description });
+  });
+
+  // core system
+  const c = f.core_system;
+  if (c) {
+    if (c.passive_name || c.passive_effect) B.passive.push({ name: c.passive_name || c.name, src: `Core system · ${c.name}`, detail: c.passive_effect });
+    if (c.active_name) add(c.activation || "Quick", { name: c.active_name, src: `Core power · ${c.name}`, detail: c.active_effect, core: true });
+    (c.active_actions || []).forEach(a => add(a.activation, { name: a.name, src: `Core power · ${c.active_name}`, detail: a.detail, freq: a.trigger || a.frequency, note: `Only after you activate ${c.active_name}.` }));
+  }
+
+  // talents
+  (p.talents || []).forEach(t => {
+    const d = t.data; if (!d) return;
+    (d.ranks || []).slice(0, t.rank || 1).forEach((r, i) => {
+      const src = `Talent · ${d.name} ${["I", "II", "III"][i] || i + 1}`;
+      const acts = r.actions || [];
+      acts.forEach(a => add(a.activation, { name: a.name, src, detail: a.detail, trigger: a.trigger, freq: a.frequency }));
+      if (!acts.length || !/^gain the\b/i.test(String(r.description || "").replace(/<[^>]+>/g, "")))
+        B.passive.push({ name: r.name, src, detail: r.description });
+    });
+  });
+
+  // core bonuses (when exported with data)
+  (p.core_bonuses || []).forEach(cb => { if (cb && cb.data) B.passive.push({ name: cb.data.name, src: "Core bonus", detail: cb.data.effect }); });
+
+  return { pilot: p, mech, frame: f, stats, weapons, B, eng };
+}
+
+/* ---------- static core rules ---------- */
+function coreRules(m) {
+  const sp = m.stats.speed;
+  const threats = m.weapons.filter(w => !w.destroyed && !w.superheavy).map(w => `${w.name} (Threat ${w.threat})`).join(", ") || "your weapons";
+  return {
+    quick: [
+      ["Skirmish", "Attack with one weapon (not Superheavy). You may also fire one Auxiliary weapon on the same mount; that extra shot doesn't deal bonus damage."],
+      ["Boost", `Move again, up to your Speed (${sp}).`],
+      ["Quick Tech", `Pick one: Bolster (an ally gets +2 Accuracy on their next skill check or save), Lock On (the next attack on that target gets +1 Accuracy), Scan (learn a target's stats), or Invade (tech attack at +${m.stats.tech}). You can take Quick Tech more than once per turn if you pick a different option each time.`],
+      ["Ram", "Melee attack against an adjacent target your size or smaller. On a hit, knock them Prone or push them 1 space."],
+      ["Grapple", "Melee attack to grab an adjacent target. On a hit you're both Engaged, and the smaller character can't move away."],
+      ["Hide", "If you're out of enemy line of sight or in cover, and not Engaged, become Hidden."],
+      ["Search", `Look for Hidden characters within Sensors (${m.stats.sensors}).`],
+      ["Prepare", "Name a quick action and a trigger. Take it as a reaction when the trigger happens before your next turn."],
+      ["Shut Down", "Clear all heat and Exposed, and end tech effects on you. Your mech is Stunned until you Boot Up. Use it when heat is about to overwhelm you."],
+      ["Eject", "Your pilot launches out of the mech. Emergencies only."],
+      ["Self-Destruct", "Overload your reactor. It explodes a turn or two later. Emergencies only."]
+    ],
+    full: [
+      ["Barrage", "Attack with two weapons, or with one Superheavy weapon."],
+      ["Full Tech", "Take two Quick Tech options, or use one system that lists Full Tech."],
+      ["Stabilize", "Choose one: spend 1 Repair to restore all HP, or clear all heat. Then choose one: reload all Loading weapons, clear Burn, or clear a condition on yourself or an adjacent ally."],
+      ["Disengage", "Until the end of your turn, ignore engagement and your movement doesn't provoke reactions."],
+      ["Improvised Attack", "Melee attack with whatever is at hand for 1d6 Kinetic."],
+      ["Skill Check", "Use a mech skill (Hull, Agility, Systems, Engineering) to do something the other actions don't cover."],
+      ["Mount / Dismount", "Get into or out of your mech."],
+      ["Boot Up", "Restart your mech after Shut Down."]
+    ],
+    reaction: [
+      ["Overwatch", `When a hostile character starts moving inside one of your weapons' Threat, Skirmish them before they move. Your threat: ${threats}.`],
+      ["Brace", "When hit by an attack, gain Resistance to its damage. Until your next turn ends you can't take reactions, and on that turn you only get a standard move or one quick action."]
+    ]
+  };
+}
+
+/* ---------- state ---------- */
+function newState(callsign) {
+  return { callsign, pilot: null, error: null, file: "", mechIdx: 0, model: null, slot: "q1",
+    turn: { move: false, full: false, q1: false, q2: false, oc: false }, ocUses: 0 };
+}
+const players = Object.fromEntries(SQUAD.map(c => [c, newState(c)]));
+let state = players[SQUAD[0]];
+
+/* Swap in freshly loaded data. Keeps the turn tracker unless the mech list changed. */
+function applyPilot(st, raw, file) {
+  const p = normalizePilot(raw);
+  const prevId = st.pilot && st.pilot.mechs[st.mechIdx] && st.pilot.mechs[st.mechIdx].id;
+  st.pilot = p; st.file = file; st.error = null;
+  let idx = prevId ? p.mechs.findIndex(m => m.id === prevId) : -1;
+  if (idx < 0) {
+    const fav = p.mechs.findIndex(m => m.id === p.favorite_mech);
+    idx = fav >= 0 ? fav : 0;
+    st.turn = { move: false, full: false, q1: false, q2: false, oc: false };
+  }
+  st.mechIdx = idx;
+}
+function rebuild() {
+  state.model = buildModel(state.pilot, state.pilot.mechs[state.mechIdx]);
+  renderHeader(); renderStats(); renderDiagram(); renderPanel(); renderPassives();
+}
+function resetTurn() { state.turn = { move: false, full: false, q1: false, q2: false, oc: false }; }
+
+/* ---------- rendering ---------- */
+function renderHeader() {
+  const p = state.pilot, m = state.model;
+  $("callsign").textContent = p.callsign || p.name || "Unnamed pilot";
+  $("who").innerHTML = `<b>${esc(p.name || "")}</b> · LL${p.level || 0} · <b>${esc(m.mech.name || "Unnamed mech")}</b> (${esc((m.frame.source ? m.frame.source + " " : "") + (m.frame.name || "Unknown frame"))})`;
+  $("fileTag").textContent = state.file + (state.loadedAt ? " · loaded " + state.loadedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "");
+  const sel = $("mechSel");
+  sel.hidden = p.mechs.length < 2;
+  sel.innerHTML = p.mechs.map((mm, i) => `<option value="${i}" ${i === state.mechIdx ? "selected" : ""}>${esc(mm.name || "Mech " + (i + 1))} · ${esc(mm.frameData?.name || "")}</option>`).join("");
+}
+function renderStats() {
+  const s = state.model.stats;
+  const rows = [["HP", s.hp], ["Armor", s.armor], ["Evasion", s.evasion], ["E-Defense", s.edef], ["Speed", s.speed], ["Heat cap", s.heat], ["Sensors", s.sensors], ["Save", s.save], ["Tech atk", (s.tech >= 0 ? "+" : "") + s.tech], ["Structure", s.structure], ["Stress", s.stress]];
+  $("stats").innerHTML = rows.map(([k, v]) => `<div class="stat"><span>${k}</span><b>${esc(v)}</b></div>`).join("");
+  $("statsPeek").textContent = `HP ${s.hp} · Evasion ${s.evasion} · E-Def ${s.edef} · Speed ${s.speed} · Heat ${s.heat}`;
+}
+
+function slotCount(slot) {
+  const m = state.model, R = coreRules(m);
+  const b = { move: 1, full: m.B.full.length + R.full.length, quick: m.B.quick.length + R.quick.length,
+    free: m.B.free.length + 1, reaction: m.B.reaction.length + R.reaction.length, protocol: m.B.protocol.length };
+  return b[slot];
+}
+function banner(slot, kind, label, opts = {}) {
+  const t = state.turn;
+  const viewing = state.slot === slot;
+  const done = opts.doneKey ? t[opts.doneKey] : false;
+  const locked = opts.locked;
+  const count = opts.count != null ? opts.count : "";
+  const chk = opts.doneKey ? `<button class="chk" type="button" data-done="${opts.doneKey}" aria-pressed="${done}" ${locked ? "disabled" : ""} aria-label="Mark ${esc(opts.ariaName || label)} as used" title="${locked ? esc(opts.lockReason || "") : "Mark as used"}">✓</button>` : "";
+  return `<div class="banner k-${kind}${viewing ? " selected" : ""}${done ? " done" : ""}${locked ? " locked" : ""}">
+    <button class="sel" type="button" data-slot="${slot}" aria-pressed="${viewing}"><span>${label}</span><span class="count">${count}</span></button>${chk}</div>`;
+}
+function renderDiagram() {
+  const t = state.turn;
+  const qc = String(slotCount("quick"));
+  const nextHeat = HEAT_COSTS[Math.min(state.ocUses - (t.oc ? 1 : 0), 3)];
+  const protoN = slotCount("protocol");
+  $("diagram").innerHTML = `
+    ${protoN ? `<div><span class="step-label">Start of turn, optional:</span>
+      <div class="row">${banner("protocol", "protocol", "Protocol", { count: protoN + (protoN === 1 ? " option" : " options") })}</div></div>` : ""}
+    <div><span class="step-label">Get 1:</span>
+      <div class="bracket"><div class="row">${banner("move", "move", "Move", { doneKey: "move", count: state.model.stats.speed + " spaces" })}</div></div></div>
+    <div><span class="step-label">Pick 1:</span>
+      <div class="bracket">
+        <div class="row">${banner("full", "full", "Full", { doneKey: "full", count: slotCount("full") + " options", locked: t.q1 || t.q2, lockReason: "You already took a quick action this turn" })}</div>
+        <div class="row">${banner("q1", "quick", "Quick", { doneKey: "q1", ariaName: "first quick action", count: qc, locked: t.full, lockReason: "You already took a full action this turn" })}<span class="plus">+</span>${banner("q2", "quick", "Quick", { doneKey: "q2", ariaName: "second quick action", count: "", locked: t.full, lockReason: "You already took a full action this turn" })}</div>
+      </div></div>
+    <div><span class="step-label">Once per turn, <em>overcharge</em> for:</span>
+      <div class="row">${banner("ocq", "quick", "Quick", { doneKey: "oc", ariaName: "overcharge", count: "" })}<span class="plus heat">+</span>${banner("heat", "heat", "Heat", { count: "+" + nextHeat })}</div></div>
+    <div><span class="step-label">Any time they apply:</span>
+      <div class="row">${banner("free", "free", "Free", { count: slotCount("free") })}${banner("reaction", "reaction", "Reaction", { count: slotCount("reaction") })}</div></div>`;
+  const used = [];
+  if (t.move) used.push("move"); if (t.full) used.push("full action"); if (t.q1 || t.q2) used.push(((t.q1 ? 1 : 0) + (t.q2 ? 1 : 0)) + " quick"); if (t.oc) used.push("overcharge");
+  $("turnStatus").textContent = (used.length ? "Used: " + used.join(", ") + ". " : "Nothing used yet this turn. ") + `Overcharged ${state.ocUses}× this scene.`;
+}
+
+function chipsHTML(it) {
+  const parts = [];
+  (it.dmg || []).forEach(d => parts.push(`<span class="chip dmg">${esc(d)}</span>`));
+  (it.chips || []).forEach(c => parts.push(`<span class="chip">${esc(c)}</span>`));
+  if (it.freq) parts.push(`<span class="chip">${esc(it.freq)}</span>`);
+  if (it.uses) parts.push(`<span class="chip">${esc(it.uses)}</span>`);
+  if (it.core) parts.push(`<span class="chip core">Uses Core Power</span>`);
+  if (it.destroyed) parts.push(`<span class="chip warn">Destroyed</span>`);
+  return parts.length ? `<div class="chips">${parts.join("")}</div>` : "";
+}
+function actHTML(it) {
+  return `<article class="act"><header><h5>${esc(it.name)}</h5><span class="src">${esc(it.src || "")}</span></header>
+    ${chipsHTML(it)}
+    ${it.trigger ? `<p class="trig"><b>Trigger:</b> ${rich(it.trigger)}</p>` : ""}
+    ${it.detail ? `<p>${rich(it.detail)}</p>` : ""}
+    ${it.note ? `<p class="note">${esc(it.note)}</p>` : ""}</article>`;
+}
+function weaponHTML(w) {
+  const hints = w.tags.map(t => TAG_HINTS[t.id]).filter(Boolean);
+  return `<article class="act"><header><h5>${esc(w.name)}</h5><span class="src">${esc([w.size, w.type].filter(Boolean).join(" "))} · ${esc(w.mountType)} mount</span></header>
+    <div class="chips">${w.damage.map(d => `<span class="chip dmg">${esc(d)}</span>`).join("")}${w.range.map(r => `<span class="chip">${esc(r)}</span>`).join("")}${w.tags.map(t => `<span class="chip">${esc(tagLabel(t))}</span>`).join("")}${w.destroyed ? `<span class="chip warn">Destroyed</span>` : ""}</div>
+    ${w.effect ? `<p>${rich(w.effect)}</p>` : ""}
+    ${hints.length ? `<p class="note">${esc(hints.join(" "))}</p>` : ""}</article>`;
+}
+function group(title, inner) { return `<div class="group"><h4>${title}</h4>${inner}</div>`; }
+function rulesList(rows) { return `<dl class="rules">${rows.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join("")}</dl>`; }
+function listOrEmpty(items, empty) { return items.length ? items.map(actHTML).join("") : `<p class="empty">${empty}</p>`; }
+
+const SLOT_INFO = {
+  move: ["move", "Move", "Every turn you get one standard move. You can split it up: move some, take an action, then move the rest."],
+  full: ["full", "Full action", "Take one full action instead of two quick actions. It uses your whole action budget for the turn."],
+  q1: ["quick", "Quick action", "Take two quick actions instead of one full action. They have to be two different actions."],
+  q2: ["quick", "Quick action", "Your second quick action. It can't be the same action as your first one."],
+  ocq: ["quick", "Overcharge: quick action", "Once per turn, take one extra quick action and pay heat for it. You still can't repeat an action you already took this turn."],
+  heat: ["heat", "Overcharge heat", "Overcharging gets more expensive each time you do it. The cost resets when you rest."],
+  free: ["free", "Free actions", "Free actions don't use up your move or your actions. Take them on your turn whenever their rules allow."],
+  reaction: ["reaction", "Reactions", "Reactions happen when their trigger occurs, even on other characters' turns. Check each one's limit."],
+  protocol: ["protocol", "Protocols", "Protocols can only be activated at the start of your turn, before you move or take any other action."]
+};
+const KIND_VAR = { move: "--move", full: "--full", quick: "--quick", heat: "--heat", free: "--free", reaction: "--react", protocol: "--proto" };
+
+function renderPanel() {
+  const m = state.model, R = coreRules(m), slot = state.slot;
+  const [kind, title, rule] = SLOT_INFO[slot];
+  const usable = m.weapons.filter(w => !w.superheavy);
+  let body = "";
+  if (slot === "move") {
+    const movers = [...m.B.quick, ...m.B.free, ...m.B.protocol].filter(i => /boost|move/i.test(i.name));
+    body = group("Your standard move", `<article class="act"><header><h5>Move up to ${m.stats.speed} spaces</h5><span class="src">Speed ${m.stats.speed}</span></header>
+      <p>Difficult terrain costs 2 spaces per space. Moving out of an enemy's threat range can trigger their Overwatch.</p></article>`)
+      + group("Ways to move further", rulesList([["Boost", `Quick action: move again, up to ${m.stats.speed} more spaces.`]]) + movers.map(actHTML).join(""));
+  } else if (slot === "full") {
+    body = group("From your mech", listOrEmpty(m.B.full, "No mech-specific full actions. Use the ones everyone has below."))
+      + group("Barrage with any two", m.weapons.map(weaponHTML).join("") || `<p class="empty">No weapons equipped.</p>`)
+      + group("Everyone can", rulesList(R.full));
+  } else if (slot === "q1" || slot === "q2" || slot === "ocq") {
+    body = (slot === "ocq" ? `<div class="callout">This overcharge will cost <b>+${esc(HEAT_COSTS[Math.min(state.ocUses - (state.turn.oc ? 1 : 0), 3)])} heat</b>. Your heat cap is ${m.stats.heat}.</div>` : "")
+      + group("From your mech", listOrEmpty(m.B.quick, "No mech-specific quick actions. Use the ones everyone has below."))
+      + group("Skirmish with one of these", usable.map(weaponHTML).join("") || `<p class="empty">No weapons you can Skirmish with.</p>`)
+      + group("Everyone can", rulesList(R.quick));
+  } else if (slot === "heat") {
+    const paidThisTurn = state.turn.oc ? 1 : 0;
+    const nextIdx = Math.min(state.ocUses - paidThisTurn, 3);
+    body = `<div class="heatladder">${HEAT_COSTS.map((c, i) => `<div class="${i === nextIdx ? "next" : i < nextIdx ? "paid" : ""}"><span>${["1st", "2nd", "3rd", "4th+"][i]}</span><b>${c}</b></div>`).join("")}</div>
+      <div class="callout">Your heat cap is <b>${m.stats.heat}</b>. If heat goes over the cap, clear it and make an overheating check. Stabilize or Shut Down can clear heat.</div>`
+      + group("Tracking", `<p class="empty" style="font-style:normal">Tick the overcharge Quick when you use it. Press New scene after a rest to reset the cost.</p>`);
+  } else if (slot === "free") {
+    body = group("From your mech", listOrEmpty(m.B.free, "No mech-specific free actions."))
+      + group("Everyone can", rulesList([["Overcharge", "Once per turn, take an extra quick action for heat. See the Overcharge row."]]));
+  } else if (slot === "reaction") {
+    body = group("From your mech", listOrEmpty(m.B.reaction, "No mech-specific reactions."))
+      + group("Everyone can", rulesList(R.reaction));
+  } else if (slot === "protocol") {
+    body = group("From your mech", listOrEmpty(m.B.protocol, "No protocols."));
+  }
+  const panel = $("panel");
+  panel.innerHTML = `<div class="phead" style="--c: var(${KIND_VAR[kind]})"><h3>${esc(title)}</h3><p>${esc(rule)}</p></div><div class="pbody">${body}</div>`;
+}
+function renderPassives() {
+  const items = state.model.B.passive;
+  $("passives").innerHTML = items.length ? items.map(actHTML).join("") : `<p class="empty">Nothing passive on this build.</p>`;
+}
+
+/* ---------- events ---------- */
+$("diagram").addEventListener("click", e => {
+  const chk = e.target.closest(".chk");
+  if (chk) {
+    if (chk.disabled) return;
+    const k = chk.dataset.done;
+    state.turn[k] = !state.turn[k];
+    if (k === "oc") state.ocUses += state.turn.oc ? 1 : -1;
+    renderDiagram(); renderPanel(); return;
+  }
+  const sel = e.target.closest(".sel");
+  if (sel) {
+    state.slot = sel.dataset.slot;
+    renderDiagram(); renderPanel();
+    if (window.matchMedia("(max-width: 880px)").matches) $("panel").scrollIntoView({ behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth", block: "start" });
+  }
+});
+$("newTurn").addEventListener("click", () => { resetTurn(); renderDiagram(); renderPanel(); });
+$("newScene").addEventListener("click", () => { resetTurn(); state.ocUses = 0; renderDiagram(); renderPanel(); });
+$("mechSel").addEventListener("change", e => { state.mechIdx = +e.target.value; resetTurn(); rebuild(); });
+
+function showMsg(text, err) { const el = $("msg"); el.textContent = text; el.className = err ? "err" : ""; el.hidden = !text; }
+
+/* ---------- loading pilot files ---------- */
+async function fetchPilot(callsign) {
+  // GitHub Pages file names are case-sensitive, so try the common spellings.
+  const names = [...new Set([callsign, callsign.toLowerCase(), callsign.toUpperCase()])].map(n => n + ".json");
+  let lastErr = null;
+  for (const file of names) {
+    let res;
+    try { res = await fetch(`${encodeURIComponent(file.slice(0, -5))}.json?t=${Date.now()}`, { cache: "no-store" }); }
+    catch (e) { lastErr = { kind: "network" }; continue; }
+    if (res.status === 404) { lastErr = lastErr || { kind: "missing" }; continue; }
+    if (!res.ok) { lastErr = { kind: "http", status: res.status }; continue; }
+    let raw;
+    try { raw = JSON.parse(await res.text()); } catch { return { error: { kind: "json", file } }; }
+    return { raw, file };
+  }
+  return { error: lastErr || { kind: "missing" } };
+}
+async function loadPlayer(callsign) {
+  const st = players[callsign];
+  const r = await fetchPilot(callsign);
+  if (r.error) { st.error = r.error; return; }
+  try { applyPilot(st, r.raw, r.file); st.loadedAt = new Date(); }
+  catch (e) { st.error = { kind: "shape", file: r.file, message: e.message }; }
+}
+
+function renderTabs() {
+  $("tabs").innerHTML = SQUAD.map(c => {
+    const p = players[c];
+    const sel = c === state.callsign;
+    const miss = p.error && !p.pilot;
+    return `<a class="tab${miss ? " missing" : ""}" role="tab" href="#${c}" aria-selected="${sel}" data-tab="${c}"${miss ? ` title="${c}.json didn't load"` : ""}>${esc(c)}</a>`;
+  }).join("");
+}
+function renderNotice() {
+  const e = state.error, c = state.callsign;
+  const box = $("notice");
+  if (!e) { box.hidden = true; return; }
+  const msgs = {
+    missing: [`No pilot file for ${c} yet`, `Add <code>${esc(c)}.json</code> to the repository, next to <code>index.html</code>. Export it from COMP/CON with the pilot's Export option, rename it, commit it, then press Refresh. GitHub Pages can take a minute or two to publish a new commit.`],
+    json: [`${c}'s file is damaged`, `<code>${esc(e.file)}</code> isn't valid JSON. Export the pilot from COMP/CON again and replace the file.`],
+    shape: [`${c}'s file isn't a pilot`, `${esc(e.message)}`],
+    network: [`Couldn't reach the pilot files`, location.protocol === "file:" ? `Browsers block reading files when the page is opened straight from disk. Open the GitHub Pages link instead, or run a local server (see the README).` : `Check your connection and press Refresh.`],
+    http: [`The server refused ${c}'s file`, `It answered with status ${e.status}. Press Refresh to try again.`]
+  };
+  const [h, body] = msgs[e.kind] || msgs.missing;
+  if (state.pilot) {
+    // keep showing the last good copy, with a warning above it
+    box.innerHTML = `<h2>Showing the last copy that loaded</h2><p>${body}</p>`;
+  } else box.innerHTML = `<h2>${esc(h)}</h2><p>${body}</p>`;
+  box.hidden = false;
+}
+function showPlayer(callsign) {
+  state = players[callsign] || players[SQUAD[0]];
+  renderTabs(); renderNotice();
+  $("content").hidden = !state.pilot;
+  if (state.pilot) rebuild();
+  document.title = `${state.callsign} · Lancer Action Board`;
+}
+async function refreshAll() {
+  const btn = $("refreshBtn");
+  btn.disabled = true; btn.classList.add("spin"); showMsg("Loading pilot files…");
+  await Promise.all(SQUAD.map(loadPlayer));
+  btn.disabled = false; btn.classList.remove("spin");
+  const ok = SQUAD.filter(c => !players[c].error).length;
+  showMsg(ok === SQUAD.length ? "" : `Loaded ${ok} of ${SQUAD.length} pilots.`, ok === 0);
+  showPlayer(state.callsign);
+}
+function tabFromHash() {
+  const h = decodeURIComponent(location.hash.slice(1)).toLowerCase();
+  return SQUAD.find(c => c.toLowerCase() === h) || SQUAD[0];
+}
+$("tabs").addEventListener("click", e => {
+  const t = e.target.closest("[data-tab]"); if (!t) return;
+  e.preventDefault();
+  history.replaceState(null, "", "#" + t.dataset.tab);
+  showPlayer(t.dataset.tab);
+});
+window.addEventListener("hashchange", () => showPlayer(tabFromHash()));
+$("refreshBtn").addEventListener("click", refreshAll);
+
+/* remember which sections are open */
+const FOLD_KEY = "lancer-action-board:folds";
+let folds = {};
+try { folds = JSON.parse(localStorage.getItem(FOLD_KEY) || "{}") || {}; } catch {}
+["statsBox"].forEach(id => {
+  const el = $(id);
+  if (typeof folds[id] === "boolean") el.open = folds[id];
+  el.addEventListener("toggle", () => { folds[id] = el.open; try { localStorage.setItem(FOLD_KEY, JSON.stringify(folds)); } catch {} });
+});
+
+/* ---------- boot ---------- */
+state = players[tabFromHash()];
+renderTabs();
+refreshAll();
+</script>
+</body>
+</html>
